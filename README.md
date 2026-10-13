@@ -29,6 +29,10 @@ cp build/*.so ~/.znc/modules/                            # or cmake --install bu
 
 Single modules also build with `znc-buildmod -I common modules/<name>.cpp`.
 
+Needs ZNC 1.10. The suite runs against the `znc-1.10.3` release and git
+master (set `ZNC_BIN` and `IRCV3_BUILD` to point the tests at a build).
+Debian 13's 1.9.1 package is too old; build 1.10.3 from source there.
+
 ## Load
 
 ```

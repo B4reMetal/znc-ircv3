@@ -192,7 +192,11 @@ class CIrcv3Base : public CModule {
         const CString& sCmd = Message.GetCommand();
         const CString sNick = Message.GetNick().GetNick();
         if (sNick.empty() || VisibleInAttachedChannels(pNet, sNick)) return CONTINUE;
-        const EModRet eHidden = sCmd.Equals("SETNAME") ? HALT : CONTINUE;
+        // Nick is in no attached channel: ZNC git (after 1.10.3) drops AWAY,
+        // ACCOUNT and CHGHOST here itself; 1.10.3 and earlier broadcast them
+        // to every client with the cap, and no release handles SETNAME. HALT
+        // in all cases so the behaviour does not depend on the core version.
+        const EModRet eHidden = HALT;
         if (!ServerHasExtMon(pNet) || !IsMonitored(pNet, sNick)) return eHidden;
         for (CClient* pClient : pNet->GetClients()) {
             if (!m_Caps.Has(pClient, kExtMon)) continue;
