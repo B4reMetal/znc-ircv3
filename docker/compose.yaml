@@ -4,6 +4,8 @@
 #   docker compose -f docker/compose.yaml up -d
 #   ergo1: 127.0.0.1:16667 (IRC) 127.0.0.1:18097 (WebSocket)
 #   ergo2: 127.0.0.2:26667 (IRC) 127.0.0.2:28097 (WebSocket)
+#   ergo3: 127.0.0.3:36667 (IRC) 127.0.0.3:38097 (WebSocket), stands in for
+#          a network with imported history only
 #
 # The config in ./ergo-manual.yaml listens on :6667 and :8097 inside the
 # container, allows registration without verification and keeps history so
@@ -28,6 +30,16 @@ services:
       - ergo2-data:/ircd
       - ./ergo-manual.yaml:/ircd/ircd.yaml:ro
 
+  ergo3:
+    image: ghcr.io/ergochat/ergo:v2.19.1
+    ports:
+      - "127.0.0.3:36667:6667"
+      - "127.0.0.3:38097:8097"
+    volumes:
+      - ergo3-data:/ircd
+      - ./ergo-manual.yaml:/ircd/ircd.yaml:ro
+
 volumes:
   ergo1-data:
   ergo2-data:
+  ergo3-data:

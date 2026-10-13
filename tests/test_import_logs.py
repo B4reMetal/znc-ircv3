@@ -138,3 +138,22 @@ def test_lines_already_recorded_live_are_skipped(tmp_path, capsys):
     assert len(lines) == 3, lines
     assert sum(1 for l in lines if ":peer!" in l and "already here" in l) == 1
     assert any(":other!" in l and "already here" in l for l in lines)  # different sender: kept
+
+
+def test_identical_lines_in_the_same_second_are_all_kept(tmp_path, capsys):
+    """A greeter posts its banner twice within a second: both copies stay,
+    and a second import adds nothing."""
+    import re
+    logdir = tmp_path / "log" / ZNC_USER / "net" / "#chan"
+    logdir.mkdir(parents=True)
+    (logdir / "2026-03-01.log").write_text(
+        "[10:00:00] <greeter> Welcome!\n[10:00:00] <greeter> ~~~\n"
+        "[10:00:00] <greeter> Welcome!\n[10:00:00] <greeter> ~~~\n[10:00:01] <bob> hi\n")
+    store = tmp_path / "store"
+    assert imp.main(["--logdir", str(tmp_path / "log"), "--store", str(store), "--tz", "UTC"]) == 0
+    assert "5 imported, 0 already present" in capsys.readouterr().out
+    lines = (store / ZNC_USER / "net" / "#chan" / "2026-03-01.log").read_text().splitlines()
+    assert sum("Welcome!" in l for l in lines) == 2
+    assert len({re.search(r"msgid=([^; ]+)", l)[1] for l in lines}) == 5
+    assert imp.main(["--logdir", str(tmp_path / "log"), "--store", str(store), "--tz", "UTC"]) == 0
+    assert "0 imported, 5 already present" in capsys.readouterr().out

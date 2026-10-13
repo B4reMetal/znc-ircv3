@@ -133,8 +133,12 @@ def parse_time(tag: str) -> float:
     return dt.datetime.strptime(tag, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=dt.timezone.utc).timestamp()
 
 
-def msgid_for(time_tag: str, line: str) -> str:
-    return "znc-import-" + hashlib.sha1(f"{time_tag} {line}".encode("utf-8")).hexdigest()[:16]
+def msgid_for(time_tag: str, line: str, nth: int = 0) -> str:
+    """Stable id for a line; nth numbers identical lines within the same
+    second (a greeter posting its banner twice), so repeats are kept and a
+    re-run still recognises them."""
+    suffix = f" #{nth}" if nth else ""
+    return "znc-import-" + hashlib.sha1(f"{time_tag} {line}{suffix}".encode("utf-8")).hexdigest()[:16]
 
 
 class Store:
@@ -150,6 +154,7 @@ class Store:
         # Lines ZNC recorded live, keyed by (nick, command, text) -> times, so
         # an import of the same period does not add a second copy.
         self.live: dict[tuple[str, str, str], list[float]] = {}
+        self.repeats: dict[tuple[str, str], int] = {}  # (time, line) -> copies seen this run
         if self.dir.exists():
             for f in self.dir.glob("*.log"):
                 day = f.name[:-4]
@@ -169,7 +174,9 @@ class Store:
                 self.days[day] = entries
 
     def add(self, time_tag: str, line: str, event: bool) -> bool:
-        mid = msgid_for(time_tag, line)
+        nth = self.repeats.get((time_tag, line), 0)
+        self.repeats[(time_tag, line)] = nth + 1
+        mid = msgid_for(time_tag, line, nth)
         if mid in self.known:
             return False
         key = line_key(line)

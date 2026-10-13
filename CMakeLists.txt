@@ -12,6 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(ZNC REQUIRED)
+find_package(SQLite3 REQUIRED)  # chathistory's search index (FTS5, trigram: SQLite >= 3.34)
 
 add_compile_options(-Wall -Wextra -Wno-unused-parameter)
 option(IRCV3_STRICT "Treat warnings as errors" OFF)
@@ -35,6 +36,7 @@ ircv3_module(labeled)
 ircv3_module(multiline)
 ircv3_module(websocket)
 ircv3_module(webpush)
+target_link_libraries(chathistory PRIVATE SQLite3::SQLite3)
 target_link_libraries(webpush PRIVATE OpenSSL::Crypto)
 target_compile_definitions(webpush PRIVATE OPENSSL_SUPPRESS_DEPRECATED)
 

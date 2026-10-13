@@ -8,7 +8,7 @@ IRCv3 drafts to a stock ZNC (1.10 or later). No fork, no core patches.
 | `ircv3base` | `standard-replies`, msgid minting for messages without one, server-side `batch`, `setname`, `draft/pre-away`, `no-implicit-names`, `extended-monitor` (AWAY/ACCOUNT/CHGHOST/SETNAME of monitored nicks outside shared channels forwarded to clients that enabled it) | global, load first |
 | `bouncernetworks` | `soju.im/bouncer-networks`, `soju.im/bouncer-networks-notify`: `BOUNCER BIND/LISTNETWORKS/ADDNETWORK/CHANGENETWORK/DELNETWORK`, `BOUNCER_NETID` | global |
 | `readmarker` | `draft/read-marker`, `soju.im/read`: `MARKREAD` / `READ` shared between clients | global |
-| `chathistory` | `draft/chathistory`, `draft/event-playback`, `draft/message-redaction`: persistent per-network history store, `CHATHISTORY` queries, no auto-playback for capable clients; `soju.im/search` over the same store | global |
+| `chathistory` | `draft/chathistory`, `draft/event-playback`, `draft/message-redaction`: persistent per-network history store, `CHATHISTORY` queries, no auto-playback for capable clients; `soju.im/search` answered from a per-user SQLite FTS5 index of the same store (needs libsqlite3 with FTS5, SQLite >= 3.34) | global |
 | `labeled` | `labeled-response`: labels ZNC's own replies, routes labeled upstream replies to the requesting client only | global |
 | `multiline` | `draft/multiline` pass-through; flattened when the upstream lacks it | global |
 | `webpush` | `soju.im/webpush`: Web Push (RFC 8030/8291/8292) for highlights and PMs; immediate when no client is present, otherwise after a 5 s grace period unless a read marker shows the message was read | global |
@@ -35,7 +35,7 @@ Single modules also build with `znc-buildmod -I common modules/<name>.cpp`.
 /znc loadmod ircv3base
 /znc loadmod bouncernetworks
 /znc loadmod readmarker
-/znc loadmod chathistory days=90 limit=1000
+/znc loadmod chathistory days=90 limit=1000 searchlines=400000 searchms=2000
 /znc loadmod labeled
 /znc loadmod multiline
 /znc loadmod webpush contact=mailto:you@example.org
@@ -100,6 +100,35 @@ URI push services may use to reach you; defaults to `mailto:znc@<host>`),
   path (`*status` output); those are ACKed when the next command arrives.
 - **websocket** bridges each WebSocket into a regular `CClient` over a
   socketpair, so every other module sees a normal client.
+
+## Search index
+
+`chathistory` keeps `<moddata>/chathistory/<user>/.search.db`, an SQLite
+database with an FTS5 trigram index over every stored PRIVMSG/NOTICE
+(network, target, time, sender, msgid, byte range in the day file, text with
+formatting stripped). The day files stay the source of truth. Lines are
+indexed as they are stored; a background job (ZNC's thread pool) indexes day
+files whose size changed on disk at load, hourly, and on `/msg *chathistory
+sync`. `reindex` rebuilds everything. Pruning and redaction update the index.
+While a sync is running, day files it has not covered yet are scanned
+directly within the `searchlines`/`searchms` budget; whenever results may be
+incomplete the client gets `NOTE SEARCH TRUNCATED` first (standard-replies).
+`text=` keeps substring semantics: three characters and more go through the
+trigram index, shorter patterns scan the text column. `status` shows the
+index size, schema version and sync state.
+
+Row ids are derived from the message time, so FTS returns the newest
+matches first without sorting; two extra token columns (network/target,
+sender) let `in=` and `from=` narrow the search inside FTS. On a 7 million
+message store, common and rare words answer in about 10 ms. Expect the
+index to take roughly 1.5 times the size of the day files.
+
+Schema changes are versioned: bump `kSchemaVersion` in `common/searchindex.h`
+and append a migration, either SQL applied in a transaction or `recreate`
+(the file is replaced at load and the sync job rebuilds it). Databases newer
+than the module are refused and searches fall back to scanning. Running the
+log importer while ZNC is up is fine: a hit whose line moved is looked up by
+msgid, and a sync is started to re-read the rewritten files.
 
 ## Tests
 
