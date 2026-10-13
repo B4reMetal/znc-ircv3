@@ -260,11 +260,15 @@ END;
     // A message already present (same network/target/msgid) is left alone.
     bool Insert(const IndexRow& r) {
         const long long lBase = IdBase(TimeSeconds(r.sTime));
-        for (int iTry = 0; iTry < 8; iTry++) {
+        // The next free id at or after the second's base. A burst of more
+        // than kIdsPerSecond lines spills into the following seconds, so
+        // look further ahead on every retry.
+        long long lWindow = kIdsPerSecond;
+        for (int iTry = 0; iTry < 12; iTry++, lWindow *= 4) {
             long long lId = lBase;
             sqlite3_stmt* mx = Stmt("SELECT max(id) FROM msg WHERE id >= ? AND id < ?");
             if (!mx) return false;
-            sqlite3_bind_int64(mx, 1, lBase); sqlite3_bind_int64(mx, 2, lBase + kIdsPerSecond);
+            sqlite3_bind_int64(mx, 1, lBase); sqlite3_bind_int64(mx, 2, lBase + lWindow);
             if (sqlite3_step(mx) == SQLITE_ROW && sqlite3_column_type(mx, 0) != SQLITE_NULL) lId = sqlite3_column_int64(mx, 0) + 1;
             sqlite3_reset(mx);
             sqlite3_stmt* st = Stmt("INSERT INTO msg(id,network,target,day,time,nick,msgid,off,len,loc,who,text) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)");

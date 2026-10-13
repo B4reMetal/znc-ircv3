@@ -252,7 +252,10 @@ class CSyncJob : public CModuleJob {
                         long long lSize = (long long)fs::file_size(file, ec);
                         auto it = sizes.find(sKey);
                         if (!ec && it != sizes.end() && it->second == lSize) continue;
-                        if (IndexDayFile(idx, file, sNet, sTarget, sDay)) m_uFiles++; else m_uErrors++;
+                        if (IndexDayFile(idx, file, sNet, sTarget, sDay)) { m_uFiles++; continue; }
+                        if (IndexDayFile(idx, file, sNet, sTarget, sDay)) { m_uFiles++; continue; }  // once more (lock contention)
+                        m_uErrors++;
+                        if (m_vsFailed.size() < 5) m_vsFailed.push_back(sUser + "/" + sNet + "/" + sTarget + "/" + sDay + ": " + idx.LastError());
                     }
                 }
             }
@@ -273,6 +276,7 @@ class CSyncJob : public CModuleJob {
     unsigned m_uFiles = 0, m_uRemoved = 0, m_uErrors = 0;
     long long m_lRows = 0, m_lMillis = 0;
     CString m_sError;
+    VCString m_vsFailed;
 };
 
 class CChatHistory : public CModule {
@@ -350,7 +354,10 @@ class CChatHistory : public CModule {
         m_bIndexReady = job.m_uErrors == 0 && job.m_sError.empty();
         m_sSyncReport = CString(job.m_uFiles) + " day files indexed, " + CString(job.m_uRemoved) + " dropped, " +
                         CString(job.m_lRows) + " messages, " + CString(job.m_lMillis) + " ms";
-        if (job.m_uErrors) m_sSyncReport += ", " + CString(job.m_uErrors) + " files failed";
+        if (job.m_uErrors) {
+            m_sSyncReport += ", " + CString(job.m_uErrors) + " files failed";
+            for (const CString& f : job.m_vsFailed) m_sSyncReport += " [" + f + "]";
+        }
         if (!job.m_sError.empty()) m_sSyncReport += ", " + job.m_sError;
         DEBUG("chathistory: sync done: " << m_sSyncReport);
         if (m_bSyncPending) {
