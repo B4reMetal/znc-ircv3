@@ -1,0 +1,33 @@
+# Manual test environment: two Ergo servers in Docker. Run ZNC locally
+# (deps/znc-install/bin/znc) or point your own ZNC at the published ports.
+#
+#   docker compose -f docker/compose.yaml up -d
+#   ergo1: 127.0.0.1:16667 (IRC) 127.0.0.1:18097 (WebSocket)
+#   ergo2: 127.0.0.2:26667 (IRC) 127.0.0.2:28097 (WebSocket)
+#
+# The config in ./ergo-manual.yaml listens on :6667 and :8097 inside the
+# container, allows registration without verification and keeps history so
+# chathistory works. Data (accounts, history) lives in named volumes.
+services:
+  ergo1:
+    image: ghcr.io/ergochat/ergo:v2.19.1
+    ports:
+      - "127.0.0.1:16667:6667"
+      - "127.0.0.1:18097:8097"
+    volumes:
+      - ergo1-data:/ircd
+      - ./ergo-manual.yaml:/ircd/ircd.yaml:ro
+    environment:
+      - ERGO_NAME=ergo1
+  ergo2:
+    image: ghcr.io/ergochat/ergo:v2.19.1
+    ports:
+      - "127.0.0.2:26667:6667"
+      - "127.0.0.2:28097:8097"
+    volumes:
+      - ergo2-data:/ircd
+      - ./ergo-manual.yaml:/ircd/ircd.yaml:ro
+
+volumes:
+  ergo1-data:
+  ergo2-data:
