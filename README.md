@@ -121,7 +121,8 @@ Row ids are derived from the message time, so FTS returns the newest
 matches first without sorting; two extra token columns (network/target,
 sender) let `in=` and `from=` narrow the search inside FTS. On a 7 million
 message store, common and rare words answer in about 10 ms. Expect the
-index to take roughly 1.5 times the size of the day files.
+index to take roughly 4 times the size of the day files (about 10 times the
+size of the equivalent `log` module files, which carry no tags or msgids).
 
 Schema changes are versioned: bump `kSchemaVersion` in `common/searchindex.h`
 and append a migration, either SQL applied in a transaction or `recreate`
