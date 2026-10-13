@@ -395,9 +395,11 @@ END;
             }
         };
         if (spec.sText.empty()) {
+            // in= / from= only: the (network, target, time) and
+            // (network, nick, time) indexes give time order directly.
             sSql = "SELECT " + sCols + " FROM msg m WHERE 1=1";
             filters("m.id");
-            sSql += " ORDER BY m.id " + sOrder + " LIMIT ?";
+            sSql += " ORDER BY m.time " + sOrder + " LIMIT ?";
         } else if (Utf8Length(spec.sText) >= 3) {
             CString sMatch = "loc:\"" + LocToken(spec.sNetwork, spec.sTarget) + "\"";
             if (!spec.sNick.empty()) sMatch += " AND who:\"" + HashToken(spec.sNick) + "\"";
@@ -407,7 +409,10 @@ END;
             filters("fts.rowid");
             sSql += " ORDER BY fts.rowid " + sOrder + " LIMIT ?";
         } else {
-            sSql = "SELECT " + sCols + " FROM msg m WHERE instr(lower(m.text), ?) > 0";
+            // Too short for trigrams: walk the table newest-first (NOT
+            // INDEXED keeps the planner off the secondary indexes, which
+            // would sort every row) and stop at the limit or the budget.
+            sSql = "SELECT " + sCols + " FROM msg m NOT INDEXED WHERE instr(lower(m.text), ?) > 0";
             text(spec.sText.AsLower());
             filters("m.id");
             sSql += " ORDER BY m.id " + sOrder + " LIMIT ?";
